@@ -1,0 +1,123 @@
+'use client';
+/**
+ * Feed page component showing paginated posts.
+ */
+
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
+import api from '@/lib/api';
+import PostCard from '@/components/PostCard';
+import CreatePostButton from '@/components/CreatePostButton';
+
+interface Post {
+  _id: string;
+  authorId: {
+    _id: string;
+    username: string;
+    displayName?: string;
+    avatar?: string;
+  };
+  caption: string;
+  mediaUrls: string[];
+  likesCount: number;
+  commentsCount: number;
+  createdAt: string;
+}
+
+export default function FeedPage() {
+  const router = useRouter();
+  const { isAuthenticated, logout } = useAuthStore();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    loadPosts();
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (isAuthenticated && page > 1) {
+      loadPosts();
+    }
+  }, [page]);
+
+  const loadPosts = async () => {
+    try {
+      const response = await api.get(`/posts?page=${page}&limit=10`);
+      const newPosts = response.data;
+      if (newPosts.length === 0) {
+        setHasMore(false);
+      } else {
+        setPosts((prev) => (page === 1 ? newPosts : [...prev, ...newPosts]));
+      }
+    } catch (error) {
+      console.error('Failed to load posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    setPage((prev) => prev + 1);
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Social Media</h1>
+          <div className="flex gap-4 items-center">
+            <CreatePostButton />
+            <button
+              onClick={logout}
+              className="text-gray-600 hover:text-gray-900 px-4 py-2 rounded-md"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        {loading && posts.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No posts yet. Create the first one!</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <PostCard key={post._id} post={post} />
+            ))}
+            {hasMore && (
+              <div className="text-center">
+                <button
+                  onClick={handleLoadMore}
+                  className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                >
+                  Load More
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
